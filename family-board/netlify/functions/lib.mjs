@@ -127,7 +127,13 @@ export function cleanItems(kind, items, now) {
     if (!text) return null;
     const num = Math.round(Number(kind === "rewards" ? raw.cost : kind === "bank" ? raw.points : raw.pts));
     if (!Number.isFinite(num)) return null;
-    if (kind === "chores") out.push({ id, name: text, pts: clamp(num, 0, 50), icon: cleanIcon(raw.icon, "✅") });
+    if (kind === "chores") {
+      const item = { id, name: text, pts: clamp(num, 0, 50), icon: cleanIcon(raw.icon, "✅") };
+      /* No "who" means everyone. An empty "who" keeps the chore in the list but gives it to nobody. */
+      const who = Array.isArray(raw.who) ? PEOPLE.filter((p) => raw.who.includes(p)) : null;
+      if (who && who.length < PEOPLE.length) item.who = who;
+      out.push(item);
+    }
     else if (kind === "rewards") out.push({ id, name: text, cost: clamp(num, 1, 500), icon: cleanIcon(raw.icon, "🎁") });
     else out.push({ id, title: text, points: clamp(num, 0, 50) });
   }
@@ -281,6 +287,9 @@ export async function handle(input, store, env, now) {
     if (action === "done") {
       chore = chores.find((c) => c.id === input.chore);
       if (!chore) return reply(400, { error: "Unknown chore." });
+      if (Array.isArray(chore.who) && !chore.who.includes(person)) {
+        return reply(400, { error: "That chore is not assigned to you." });
+      }
     } else if (typeof input.chore !== "string" || !ID_SAFE.test(input.chore) || input.chore.startsWith("task_")) {
       return reply(400, { error: "Unknown chore." });
     }
@@ -393,6 +402,17 @@ export async function handle(input, store, env, now) {
     const items = cleanItems(input.kind, input.items, now);
     if (!items) return reply(400, { error: "That list is not valid." });
     await store.setJSON("config/" + input.kind, { items });
+    return reply(200, await loadState(store, now));
+  }
+
+  if (action === "restoreChores") {
+    const bad = await parentGate();
+    if (bad) return bad;
+    const have = await loadList(store, "chores", CHORES);
+    const ids = new Set(have.map((c) => c.id));
+    const items = cleanItems("chores", have.concat(CHORES.filter((c) => !ids.has(c.id))), now);
+    if (!items) return reply(400, { error: "That list is not valid." });
+    await store.setJSON("config/chores", { items });
     return reply(200, await loadState(store, now));
   }
 
