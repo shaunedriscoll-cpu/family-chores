@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Family Chore Board</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Chores">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#1f6f5c">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<style>
+:root{
+  --bg:#f6f4ef;--card:#ffffff;--ink:#1f2933;--muted:#667085;--line:#e4e0d6;
+  --accent:#1f6f5c;--accent-ink:#ffffff;--done:#e3f2ec;--warn:#fff4d6;
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#14181c;--card:#1d2328;--ink:#eef1f3;--muted:#9aa6b2;--line:#2c353d;
+  --accent:#4cb89c;--accent-ink:#0c1a16;--done:#1d3a31;--warn:#3a3217;}
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);
+  font-size:16px;line-height:1.35;padding-bottom:96px;-webkit-tap-highlight-color:transparent}
+header{padding:calc(18px + env(safe-area-inset-top)) 16px 8px}
+h1{font-size:22px;margin:0 0 2px}
+.sub{color:var(--muted);font-size:14px;margin:0}
+.who{display:flex;gap:8px;padding:10px 16px;overflow-x:auto}
+.chip{flex:1 0 auto;min-width:72px;border:2px solid var(--line);background:var(--card);color:var(--ink);
+  border-radius:999px;padding:8px 12px;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;justify-content:center}
+.chip[aria-pressed="true"]{border-color:var(--accent);background:var(--done)}
+.dot{width:22px;height:22px;border-radius:50%;color:#fff;font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
+main{padding:4px 16px 16px;max-width:640px;margin:0 auto}
+.banner{background:var(--warn);border-radius:12px;padding:10px 12px;margin:8px 0;font-size:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 14px;margin:10px 0}
+.row{display:flex;align-items:center;gap:12px}
+.grow{flex:1;min-width:0}
+.name{font-weight:650}
+.meta{color:var(--muted);font-size:13px}
+.emoji{font-size:26px;width:34px;text-align:center}
+button.act{border:0;border-radius:12px;padding:11px 16px;font-size:15px;font-weight:700;cursor:pointer;
+  background:var(--accent);color:var(--accent-ink);min-width:92px}
+button.act.done{background:var(--done);color:var(--ink);border:1px solid var(--accent)}
+button.act:disabled{opacity:.45;cursor:not-allowed}
+button.ghost{border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:10px;padding:7px 10px;font-size:13px;cursor:pointer}
+.mini{display:flex;gap:4px;margin-top:4px}
+.mini .dot{width:18px;height:18px;font-size:10px}
+.bar{height:10px;border-radius:6px;background:var(--line);overflow:hidden;margin:8px 0 4px}
+.bar>span{display:block;height:100%;border-radius:6px}
+.stats{display:flex;gap:16px;font-size:13px;color:var(--muted)}
+.stats b{color:var(--ink);font-size:16px}
+.big{font-size:34px;font-weight:800}
+nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);display:flex;padding:6px 6px calc(6px + env(safe-area-inset-bottom))}
+nav button{flex:1;border:0;background:transparent;color:var(--muted);font-size:12px;padding:8px 2px;cursor:pointer;font-weight:600}
+nav button[aria-current="page"]{color:var(--accent)}
+nav .ic{display:block;font-size:20px;margin-bottom:2px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:100px;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;max-width:90%;z-index:20}
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:30;padding:20px}
+.modal{background:var(--card);border-radius:16px;padding:18px;max-width:340px;width:100%}
+.modal p{margin:0 0 14px}
+.modal .btns{display:flex;gap:10px;justify-content:flex-end}
+.empty{color:var(--muted);text-align:center;padding:24px 8px}
+.sec{font-size:15px;margin:20px 0 2px;color:var(--muted);font-weight:700}
+.late{color:#b42318;font-weight:600}
+@media (prefers-color-scheme: dark){.late{color:#ff8a80}}
+.field{width:100%;font-size:16px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);margin:4px 0 8px;font-family:inherit}
+.two{display:flex;gap:8px}
+.two>div{flex:1;min-width:0}
+label.lbl{font-size:13px;color:var(--muted);font-weight:600}
+.hrow{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.seg{display:flex;gap:8px;margin-bottom:8px}
+.seg button{flex:1;border:2px solid var(--line);background:transparent;color:var(--ink);border-radius:10px;padding:8px;font-size:14px;font-weight:600;cursor:pointer}
+.seg button[aria-pressed="true"]{border-color:var(--accent);background:var(--done)}
+.msg{white-space:pre-wrap;word-wrap:break-word;overflow-wrap:anywhere;margin-top:2px}
+textarea.field{resize:vertical;min-height:72px}
+.pin{border-left:4px solid var(--accent)}
+nav button{padding:8px 0;font-size:11px}
+.pinbox{max-width:340px;margin:12vh auto 0;padding:0 16px;text-align:center}
+.pinbox input{width:100%;font-size:28px;letter-spacing:10px;text-align:center;padding:12px;border-radius:12px;border:2px solid var(--line);background:var(--card);color:var(--ink);margin:14px 0}
+.pinbox .err{color:#b42318;min-height:20px;font-size:14px;margin-bottom:8px}
+@media (prefers-color-scheme: dark){.pinbox .err{color:#ff8a80}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+(function(){
+"use strict";
+
+var PEOPLE = [
+  {id:"shaun",   name:"Shaun",   color:"#2b6cb0"},
+  {id:"chungha", name:"Chungha", color:"#c05621"},
+  {id:"calean",  name:"Calean",  color:"#2f855a"},
+  {id:"jayden",  name:"Jayden",  color:"#805ad5"}
+];
+
+var state = {
+  pin:null, me:null, tab:"board", data:null,
+  pinErr:"", offline:false, busy:{}, toast:"", confirm:null, checking:false,
+  ppin:null, chat:null, seen:0,
+  cform:{kind:"msg", text:"", forWho:"all", date:"", time:""}, pinText:"",
+  form:{assignee:"", title:"", points:"5", due:""},
+  mf:{chores:{name:"", val:"5", icon:""}, rewards:{name:"", val:"30", icon:""}, bank:{name:"", val:"10", icon:""}}
+};
+try {
+  state.pin = localStorage.getItem("chore_pin");
+  state.ppin = localStorage.getItem("chore_ppin");
+  var seenSaved = localStorage.getItem("chore_chat_seen");
+  state.seen = seenSaved ? Number(seenSaved) || 0 : Date.now();
+  if (!seenSaved) localStorage.setItem("chore_chat_seen", String(state.seen));
+  var savedMe = localStorage.getItem("chore_me");
+  if (PEOPLE.some(function(p){ return p.id === savedMe; })) state.me = savedMe;
+} catch(e){}
+
+var app = document.getElementById("app");
+
+function h(tag, props){
+  var e = document.createElement(tag);
+  if (props) for (var k in props){
+    var v = props[k];
+    if (k === "class") e.className = v;
+    else if (k.indexOf("on") === 0) e.addEventListener(k.slice(2), v);
+    else if (v === true) e.setAttribute(k, "");
+    else if (v !== false && v != null) e.setAttribute(k, v);
+  }
+  for (var i = 2; i < arguments.length; i++){
+    var kids = [].concat(arguments[i]);
+    for (var j = 0; j < kids.length; j++){
+      var kid = kids[j];
+      if (kid == null || kid === false) continue;
+      e.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+    }
+  }
+  return e;
+}
+
+function person(id){ for (var i=0;i<PEOPLE.length;i++) if (PEOPLE[i].id===id) return PEOPLE[i]; return null; }
+function choreById(id){
+  var list = (state.data && state.data.chores) || [];
+  for (var i=0;i<list.length;i++) if (list[i].id===id) return list[i];
+  return {id:id, name:id, pts:0, icon:"✅"};
+}
+
+/* ---- server calls ---- */
+function api(action, extra){
+  var body = {pin: state.pin, action: action};
+  if (state.ppin) body.ppin = state.ppin;
+  for (var k in (extra || {})) body[k] = extra[k];
+  return fetch("/api", {method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify(body)})
+    .then(function(r){
+      return r.json().catch(function(){ return {}; }).then(function(j){ return {status:r.status, j:j}; });
+    });
+}
+function apply(res){
+  if (res.status === 200){
+    state.data = res.j; state.offline = false; state.pinErr = "";
+    if (res.j.chat) state.chat = res.j.chat;
+    try { localStorage.setItem("chore_pin", state.pin); } catch(e){}
+    return true;
+  }
+  if (res.status === 401 || res.status === 429){
+    state.pinErr = res.status === 429 ? "Too many tries. Wait 15 minutes." : "Wrong PIN.";
+    state.pin = null; state.data = null;
+    try { localStorage.removeItem("chore_pin"); } catch(e){}
+    return false;
+  }
+  state.pinErr = "Something went wrong on the server. Try again.";
+  return false;
+}
+function refresh(){
+  if (!state.pin) return Promise.resolve();
+  return api(state.tab === "chat" ? "chat" : "state").then(apply).catch(function(){ state.offline = true; }).then(render);
+}
+function act(key, action, extra, okMsg){
+  if (state.busy[key]) return Promise.resolve(false);
+  state.busy[key] = 1; render();
+  var ok = false;
+  return api(action, extra).then(function(res){
+    if (res.status === 403 && res.j && /parent PIN/i.test(res.j.error || "")){
+      state.ppin = null;
+      try { localStorage.removeItem("chore_ppin"); } catch(e){}
+    }
+    if (apply(res)){ ok = true; if (okMsg) toast(okMsg); }
+    else if ([400, 403, 404].indexOf(res.status) >= 0 && res.j && res.j.error) toast(res.j.error);
+    else toast("Could not save. Try again.");
+  }).catch(function(){ state.offline = true; toast("No connection. Try again."); })
+    .then(function(){ delete state.busy[key]; render(); return ok; });
+}
+
+function toast(msg){
+  state.toast = msg; render();
+  setTimeout(function(){ if (state.toast === msg){ state.toast = ""; render(); } }, 2600);
+}
+function setMe(id){
+  state.me = id;
+  try { localStorage.setItem("chore_me", id); } catch(e){}
+  render();
+}
+function ask(text, onYes){ state.confirm = {text:text, onYes:onYes}; render(); }
+
+/* ---- numbers ---- */
+function totals(){
+  var d = state.data, t = {};
+  PEOPLE.forEach(function(p){ t[p.id] = {week:0, earned:0, spent:0, today:0}; });
+  d.entries.forEach(function(e){
+    var p = t[e.person]; if (!p) return;
+    p.earned += e.pts;
+    if (e.date >= d.weekStart) p.week += e.pts;
+    if (e.date === d.today) p.today += e.pts;
+  });
+  d.spent.forEach(function(s){ var p = t[s.person]; if (p) p.spent += Number(s.cost) || 0; });
+  return t;
+}
+function doneToday(){
+  var d = state.data, m = {};
+  d.entries.forEach(function(e){ if (e.date === d.today) (m[e.chore] = m[e.chore] || []).push(e.person); });
+  return m;
+}
+
+/* ---- views ---- */
+function dotEl(p){ var d = h("span", {class:"dot", title:p.name}, p.name.charAt(0)); d.style.background = p.color; return d; }
+
+function viewBoard(){
+  var td = doneToday(), me = state.me, out = [];
+  if (!me) out.push(h("div", {class:"banner"}, "Tap your name above so the board knows who earns the points."));
+  state.data.chores.forEach(function(c){
+    var who = td[c.id] || [];
+    var mine = me && who.indexOf(me) >= 0;
+    var btn;
+    if (mine){
+      btn = h("button", {class:"act done", onclick:function(){
+        ask("Remove " + c.name + " for today? You will lose " + c.pts + " points.", function(){
+          act("u"+c.id, "undo", {person:me, chore:c.id, date:state.data.today}, "Removed.");
+        });
+      }}, "Done ✓");
+    } else {
+      btn = h("button", {class:"act", disabled:!me || !!state.busy["d"+c.id], onclick:function(){
+        act("d"+c.id, "done", {person:me, chore:c.id}, "+" + c.pts + " points. Nice work.");
+      }}, "Done");
+    }
+    var mini = who.length ? h("div", {class:"mini"}, who.map(function(id){ var p = person(id); return p ? dotEl(p) : null; })) : null;
+    out.push(h("div", {class:"card row"},
+      h("div", {class:"emoji"}, c.icon || "✅"),
+      h("div", {class:"grow"}, h("div", {class:"name"}, c.name), h("div", {class:"meta"}, c.pts + " points"), mini),
+      btn));
+  });
+  return out;
+}
+
+function viewLeaders(){
+  var t = totals(), out = [];
+  var list = PEOPLE.slice().sort(function(a,b){ return t[b.id].week - t[a.id].week; });
+  var max = Math.max(1, t[list[0].id].week);
+  out.push(h("p", {class:"sub"}, "Points since Monday. The week resets every Monday. Your balance carries over."));
+  list.forEach(function(p, i){
+    var s = t[p.id];
+    var bar = h("span"); bar.style.width = Math.round((s.week / max) * 100) + "%"; bar.style.background = p.color;
+    out.push(h("div", {class:"card"},
+      h("div", {class:"row"}, dotEl(p),
+        h("div", {class:"grow name"}, p.name + (i === 0 && s.week > 0 ? "  👑" : "")),
+        h("div", {class:"big"}, String(s.week))),
+      h("div", {class:"bar"}, bar),
+      h("div", {class:"stats"},
+        h("span", null, "Today ", h("b", null, String(s.today))),
+        h("span", null, "Balance ", h("b", null, String(s.earned - s.spent))))));
+  });
+  return out;
+}
+
+function viewRewards(){
+  var out = [];
+  if (!state.me) return [h("div", {class:"banner"}, "Tap your name above to see your balance and redeem rewards.")];
+  var t = totals()[state.me], bal = t.earned - t.spent;
+  out.push(h("div", {class:"card"}, h("div", {class:"meta"}, "Your balance"), h("div", {class:"big"}, bal + " points")));
+  state.data.rewards.forEach(function(r){
+    out.push(h("div", {class:"card row"},
+      h("div", {class:"emoji"}, r.icon || "🎁"),
+      h("div", {class:"grow"}, h("div", {class:"name"}, r.name), h("div", {class:"meta"}, r.cost + " points")),
+      h("button", {class:"act", disabled:bal < r.cost || !!state.busy["r"+r.id], onclick:function(){
+        ask("Redeem " + r.name + " for " + r.cost + " points?", function(){
+          act("r"+r.id, "redeem", {person:state.me, reward:r.id}, "Redeemed: " + r.name);
+        });
+      }}, "Redeem")));
+  });
+  return out;
+}
+
+function fmt(ts){
+  try { return new Date(ts).toLocaleString([], {weekday:"short", hour:"numeric", minute:"2-digit"}); } catch(e){ return ""; }
+}
+function viewHistory(){
+  var items = [];
+  state.data.entries.forEach(function(e){ items.push({kind:"earn", date:e.date, person:e.person, chore:e.chore, pts:e.pts, ts:e.ts, label:e.label}); });
+  state.data.spent.forEach(function(s){ items.push({kind:"spend", id:s.id, person:s.person, name:String(s.name || "Reward"), pts:Number(s.cost) || 0, ts:Number(s.ts) || 0}); });
+  items.sort(function(a,b){ return b.ts - a.ts; });
+  items = items.slice(0, 40);
+  if (!items.length) return [h("div", {class:"empty"}, "Nothing logged yet. Finish a chore to start the board.")];
+  return items.map(function(it){
+    var p = person(it.person);
+    var isTask = it.kind === "earn" && String(it.chore).indexOf("task_") === 0;
+    var label = it.kind === "earn" ? (isTask ? (it.label || "Task") : (it.label || choreById(it.chore).name)) : it.name;
+    var act1 = h("button", {class:"ghost", onclick:function(){
+      if (it.kind === "earn") ask("Remove " + label + " by " + (p ? p.name : "someone") + "?", function(){
+        act("x"+it.date+it.person+it.chore, "undo", {person:it.person, chore:it.chore, date:it.date}, "Removed.");
+      });
+      else ask("Refund " + label + " (" + it.pts + " points)?", function(){
+        act("f"+it.id, "refund", {id:it.id}, "Refunded.");
+      });
+    }}, it.kind === "earn" ? "Remove" : "Refund");
+    return h("div", {class:"card row"}, p ? dotEl(p) : null,
+      h("div", {class:"grow"}, h("div", {class:"name"}, label), h("div", {class:"meta"}, (p ? p.name : "") + " · " + fmt(it.ts))),
+      h("div", {class:"name"}, (it.kind === "earn" ? "+" : "-") + it.pts), isTask ? null : act1);
+  });
+}
+
+function isParent(){ return !!state.ppin; }
+var POINT_STEPS = [0,1,2,3,4,5,6,8,10,12,15,20,25,30,40,50];
+var COST_STEPS = [10,15,20,25,30,35,40,50,60,75,100,150,200,300];
+function stepOptions(steps, current, selected){
+  var list = steps.slice();
+  var cur = Number(current);
+  if (isFinite(cur) && list.indexOf(cur) < 0){ list.push(cur); list.sort(function(a,b){ return a - b; }); }
+  return list.map(function(v){ return h("option", {value:String(v), selected:String(v) === String(selected)}, v + " points"); });
+}
+function openTasksFor(id){
+  return state.data.tasks.filter(function(t){ return !t.done && t.assignee === id; });
+}
+function dueSpan(t){
+  if (!t.due) return null;
+  var td = state.data.today;
+  if (t.due < td) return h("span", {class:"late"}, "Overdue (" + t.due + ")");
+  if (t.due === td) return h("span", {class:"late"}, "Due today");
+  return h("span", null, "Due " + t.due);
+}
+function sortTasks(list){
+  return list.slice().sort(function(a,b){
+    if (a.due && b.due && a.due !== b.due) return a.due < b.due ? -1 : 1;
+    if (a.due && !b.due) return -1;
+    if (!a.due && b.due) return 1;
+    return a.created - b.created;
+  });
+}
+function taskRow(t){
+  var p = person(t.assignee), by = person(t.by);
+  var canAct = state.me && (state.me === t.assignee || isParent());
+  var meta = h("div", {class:"meta"}, (p ? p.name : "") + " · " + t.points + " points" + (by ? " · from " + by.name : ""), t.done ? "" : " ", t.done ? null : dueSpan(t));
+  var btns = [];
+  if (!t.done){
+    btns.push(h("button", {class:"act", disabled:!canAct || !!state.busy["c"+t.id], onclick:function(){
+      act("c"+t.id, "completeTask", {id:t.id, person:state.me}, "+" + t.points + " points. Task done.");
+    }}, "Done"));
+    if (isParent()) btns.push(h("button", {class:"ghost", onclick:function(){
+      ask("Delete the task \"" + t.title + "\"?", function(){ act("x"+t.id, "deleteTask", {id:t.id, by:state.me}, "Task deleted."); });
+    }}, "Delete"));
+  } else if (canAct){
+    btns.push(h("button", {class:"ghost", onclick:function(){
+      ask("Reopen \"" + t.title + "\"? " + t.points + " points come off the total.", function(){
+        act("o"+t.id, "reopenTask", {id:t.id, person:state.me}, "Task reopened.");
+      });
+    }}, "Undo"));
+  }
+  return h("div", {class:"card row"}, p ? dotEl(p) : null,
+    h("div", {class:"grow"}, h("div", {class:"name"}, (t.done ? "✓ " : "") + t.title), meta),
+    h("div", {style:"display:flex;flex-direction:column;gap:6px;align-items:stretch"}, btns));
+}
+function viewTasks(){
+  var d = state.data, out = [], me = state.me;
+  if (!me) out.push(h("div", {class:"banner"}, "Tap your name above to see your tasks."));
+
+  if (me){
+    var mine = sortTasks(openTasksFor(me));
+    out.push(h("div", {class:"sec"}, "My tasks"));
+    if (mine.length) mine.forEach(function(t){ out.push(taskRow(t)); });
+    else out.push(h("div", {class:"empty"}, "No tasks for you right now."));
+  }
+
+  if (isParent()){
+    var f = state.form;
+    var sel = h("select", {class:"field", "aria-label":"Assign to", onchange:function(e){ f.assignee = e.target.value; }},
+      h("option", {value:""}, "Choose a person"),
+      PEOPLE.map(function(p){ return h("option", {value:p.id, selected:f.assignee === p.id}, p.name); }));
+    var bankSel = h("select", {class:"field", "aria-label":"Pick from the task bank", onchange:function(e){
+        var item = d.bank.filter(function(b){ return b.id === e.target.value; })[0];
+        if (item){ f.title = item.title; f.points = String(item.points); render(); }
+      }},
+      h("option", {value:""}, d.bank.length ? "Pick from the task bank (optional)" : "The task bank is empty"),
+      d.bank.map(function(b){ return h("option", {value:b.id}, b.title + " (" + b.points + ")"); }));
+    var title = h("input", {class:"field", type:"text", maxlength:"80", placeholder:"Or type a new task", value:f.title, "aria-label":"Task title",
+      oninput:function(e){ f.title = e.target.value; }});
+    var pts = h("select", {class:"field", "aria-label":"Points", onchange:function(e){ f.points = e.target.value; }},
+      stepOptions(POINT_STEPS, f.points, f.points));
+    var due = h("input", {class:"field", type:"date", value:f.due, "aria-label":"Due date", onchange:function(e){ f.due = e.target.value; }});
+    out.push(h("div", {class:"sec"}, "Assign a task"));
+    out.push(h("div", {class:"card"},
+      h("label", {class:"lbl"}, "Who"), sel,
+      h("label", {class:"lbl"}, "Task bank"), bankSel,
+      h("label", {class:"lbl"}, "Task"), title,
+      h("div", {class:"two"},
+        h("div", null, h("label", {class:"lbl"}, "Points"), pts),
+        h("div", null, h("label", {class:"lbl"}, "Due (optional)"), due)),
+      h("button", {class:"act", style:"width:100%", disabled:!!state.busy.assign, onclick:function(){
+        if (!f.assignee){ toast("Choose a person."); return; }
+        if (!f.title.trim()){ toast("Add a task title."); return; }
+        act("assign", "assign", {by:me, assignee:f.assignee, title:f.title, points:Number(f.points), due:f.due || null}, "Task assigned.")
+          .then(function(ok){ if (ok){ f.title = ""; f.due = ""; render(); } });
+      }}, "Assign task")));
+  } else {
+    out.push(h("div", {class:"banner"}, "Only parents assign tasks. Tap 🔒 Parent at the top and enter the parent PIN."));
+  }
+
+  var others = sortTasks(d.tasks.filter(function(t){ return !t.done && t.assignee !== me; }));
+  if (others.length){
+    out.push(h("div", {class:"sec"}, me ? "Everyone else's open tasks" : "Open tasks"));
+    others.forEach(function(t){ out.push(taskRow(t)); });
+  }
+
+  var finished = d.tasks.filter(function(t){ return t.done; }).sort(function(a,b){ return (b.doneAt || 0) - (a.doneAt || 0); }).slice(0, 10);
+  if (finished.length){
+    out.push(h("div", {class:"sec"}, "Finished recently"));
+    finished.forEach(function(t){ out.push(taskRow(t)); });
+  }
+  if (!d.tasks.length && !isParent()) out.push(h("div", {class:"empty"}, "No tasks yet. Shaun or Chungha will assign them here."));
+  return out;
+}
+
+/* ---- chat ---- */
+function whenLabel(date, time){
+  if (!date) return "";
+  try {
+    var dt = new Date(date + "T" + (time || "00:00") + ":00");
+    var day = dt.toLocaleDateString([], {weekday:"short", month:"short", day:"numeric"});
+    return time ? day + " at " + dt.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}) : day;
+  } catch(e){ return date; }
+}
+function unreadCount(){
+  if (!state.data || !state.data.chatKeys) return 0;
+  return state.data.chatKeys.filter(function(k){ return k.ts > state.seen && k.person !== state.me; }).length;
+}
+function markSeen(){
+  if (state.tab !== "chat" || !state.chat) return;
+  var newest = state.seen;
+  state.chat.messages.forEach(function(m){ if (m.ts > newest) newest = m.ts; });
+  if (newest > state.seen){
+    state.seen = newest;
+    try { localStorage.setItem("chore_chat_seen", String(newest)); } catch(e){}
+  }
+}
+function nameOf(id){ var p = person(id); return p ? p.name : "Someone"; }
+
+function viewChat(){
+  var d = state.data, c = state.chat, me = state.me, out = [], cf = state.cform;
+  if (!me) out.push(h("div", {class:"banner"}, "Tap your name above to post and to see reminders for you."));
+  if (!c){ out.push(h("div", {class:"empty"}, "Loading the chat...")); return out; }
+
+  if (c.pins.length || isParent()){
+    out.push(h("div", {class:"sec"}, "📌 Family info"));
+    c.pins.forEach(function(p){
+      out.push(h("div", {class:"card pin row"},
+        h("div", {class:"grow msg"}, p.text),
+        isParent() ? h("button", {class:"ghost", onclick:function(){
+          ask("Remove this pinned note?", function(){ act("dp"+p.id, "deletePin", {id:p.id}, "Removed."); });
+        }}, "Remove") : null));
+    });
+    if (isParent()){
+      var pinIn = h("textarea", {class:"field", maxlength:"500", placeholder:"Pin family info, for example: dentist Thursday at 4, Mom works late", "aria-label":"Pinned note",
+        oninput:function(e){ state.pinText = e.target.value; }}, state.pinText);
+      out.push(h("div", {class:"card"}, pinIn,
+        h("button", {class:"act", style:"width:100%", disabled:!!state.busy.pin, onclick:function(){
+          if (!state.pinText.trim()){ toast("Write the info first."); return; }
+          act("pin", "pinInfo", {person:me, text:state.pinText}, "Pinned.").then(function(ok){ if (ok){ state.pinText = ""; render(); } });
+        }}, "Pin it")));
+    }
+  }
+
+  if (me){
+    var mine = c.messages.filter(function(m){
+      return m.kind === "reminder" && (m.for === "all" || m.for === me) && (m.acks || []).indexOf(me) < 0 && (!m.date || m.date >= d.today);
+    }).sort(function(a,b){ return (a.date || "9999") < (b.date || "9999") ? -1 : 1; });
+    if (mine.length){
+      out.push(h("div", {class:"sec"}, "🔔 Reminders for you"));
+      mine.forEach(function(m){
+        out.push(h("div", {class:"card row"},
+          h("div", {class:"grow"}, h("div", {class:"name msg"}, m.text),
+            h("div", {class:"meta"}, [whenLabel(m.date, m.time) || "No date", "from " + nameOf(m.person)].join(" · "))),
+          h("button", {class:"act", disabled:!!state.busy["a"+m.id], onclick:function(){
+            act("a"+m.id, "ackReminder", {id:m.id, person:me}, "Got it.");
+          }}, "Got it")));
+      });
+    }
+  }
+
+  out.push(h("div", {class:"sec"}, "Send to the family"));
+  var seg = h("div", {class:"seg"},
+    h("button", {"aria-pressed":String(cf.kind === "msg"), onclick:function(){ cf.kind = "msg"; render(); }}, "Message"),
+    h("button", {"aria-pressed":String(cf.kind === "reminder"), onclick:function(){ cf.kind = "reminder"; render(); }}, "🔔 Reminder"));
+  var text = h("textarea", {class:"field", maxlength:"500", placeholder: cf.kind === "reminder" ? "Reminder, for example: soccer pickup at 5" : "Write a message", "aria-label":"Message",
+    oninput:function(e){ cf.text = e.target.value; }}, cf.text);
+  var extra = null;
+  if (cf.kind === "reminder"){
+    var forSel = h("select", {class:"field", "aria-label":"Remind who", onchange:function(e){ cf.forWho = e.target.value; }},
+      h("option", {value:"all", selected:cf.forWho === "all"}, "Everyone"),
+      PEOPLE.map(function(p){ return h("option", {value:p.id, selected:cf.forWho === p.id}, p.name); }));
+    var dIn = h("input", {class:"field", type:"date", value:cf.date, "aria-label":"Reminder date", onchange:function(e){ cf.date = e.target.value; }});
+    var tIn = h("input", {class:"field", type:"time", value:cf.time, "aria-label":"Reminder time", onchange:function(e){ cf.time = e.target.value; }});
+    extra = h("div", null,
+      h("label", {class:"lbl"}, "Remind"), forSel,
+      h("div", {class:"two"}, h("div", null, h("label", {class:"lbl"}, "Date"), dIn), h("div", null, h("label", {class:"lbl"}, "Time (optional)"), tIn)));
+  }
+  out.push(h("div", {class:"card"}, seg, text, extra,
+    h("button", {class:"act", style:"width:100%", disabled:!me || !!state.busy.post, onclick:function(){
+      if (!cf.text.trim()){ toast("Write something first."); return; }
+      act("post", "post", {person:me, kind:cf.kind, text:cf.text, forWho:cf.forWho, date:cf.date || null, time:cf.time || null}, cf.kind === "reminder" ? "Reminder sent." : "Sent.")
+        .then(function(ok){ if (ok){ cf.text = ""; cf.date = ""; cf.time = ""; render(); } });
+    }}, cf.kind === "reminder" ? "Send reminder" : "Send")));
+
+  out.push(h("div", {class:"sec"}, "Recent"));
+  if (!c.messages.length) out.push(h("div", {class:"empty"}, "No messages yet. Say hello."));
+  c.messages.forEach(function(m){
+    var p = person(m.person);
+    var isRem = m.kind === "reminder";
+    var line = [nameOf(m.person), fmt(m.ts)].join(" · ");
+    var rem = null;
+    if (isRem){
+      var tgt = m.for === "all" ? "Everyone" : nameOf(m.for);
+      var acked = (m.acks || []).map(nameOf);
+      rem = h("div", {class:"meta"}, "🔔 For " + tgt + (m.date ? " · " + whenLabel(m.date, m.time) : "") + (acked.length ? " · Got it: " + acked.join(", ") : ""));
+    }
+    var canDel = me && (me === m.person || isParent());
+    out.push(h("div", {class:"card row"}, p ? dotEl(p) : null,
+      h("div", {class:"grow"}, h("div", {class:"meta"}, line), h("div", {class:"msg"}, m.text), rem),
+      canDel ? h("button", {class:"ghost", onclick:function(){
+        ask("Delete this " + (isRem ? "reminder" : "message") + "?", function(){ act("dm"+m.id, "deleteMsg", {id:m.id, person:me}, "Deleted."); });
+      }}, "Delete") : null));
+  });
+  return out;
+}
+
+var LISTS = {
+  chores:  {title:"Daily chores",  nameKey:"name",  valKey:"pts",    steps:POINT_STEPS, icon:true,  ph:"New chore, for example: set the table"},
+  rewards: {title:"Rewards",       nameKey:"name",  valKey:"cost",   steps:COST_STEPS,  icon:true,  ph:"New reward, for example: game night pick"},
+  bank:    {title:"Task bank",     nameKey:"title", valKey:"points", steps:POINT_STEPS, icon:false, ph:"New bank task, for example: clean the garage"}
+};
+function saveList(kind, items, okMsg){ return act("cfg" + kind, "setConfig", {kind:kind, items:items}, okMsg); }
+
+function listEditor(kind){
+  var o = LISTS[kind], items = state.data[kind], mf = state.mf[kind], out = [];
+  out.push(h("div", {class:"sec"}, o.title));
+  if (!items.length) out.push(h("div", {class:"empty"}, "Nothing here yet."));
+  items.forEach(function(it, i){
+    var sel = h("select", {class:"field", style:"width:auto;margin:0", "aria-label":"Points for " + it[o.nameKey], onchange:function(e){
+      var next = items.map(function(x){ return Object.assign({}, x); });
+      next[i][o.valKey] = Number(e.target.value);
+      saveList(kind, next, "Saved.");
+    }}, stepOptions(o.steps, it[o.valKey], it[o.valKey]));
+    out.push(h("div", {class:"card row"},
+      o.icon ? h("div", {class:"emoji"}, it.icon || "") : null,
+      h("div", {class:"grow name"}, it[o.nameKey]),
+      sel,
+      h("button", {class:"ghost", onclick:function(){
+        ask("Remove \"" + it[o.nameKey] + "\" from the list?", function(){
+          saveList(kind, items.filter(function(_, j){ return j !== i; }), "Removed.");
+        });
+      }}, "Remove")));
+  });
+  var nameIn = h("input", {class:"field", type:"text", maxlength:o.nameKey === "title" ? "80" : "40", placeholder:o.ph, value:mf.name, "aria-label":"New item name",
+    oninput:function(e){ mf.name = e.target.value; }});
+  var valIn = h("select", {class:"field", "aria-label":"Points", onchange:function(e){ mf.val = e.target.value; }}, stepOptions(o.steps, mf.val, mf.val));
+  var iconIn = o.icon ? h("input", {class:"field", type:"text", maxlength:"4", placeholder:"Emoji (optional)", value:mf.icon, "aria-label":"Emoji",
+    oninput:function(e){ mf.icon = e.target.value; }}) : null;
+  out.push(h("div", {class:"card"},
+    nameIn,
+    h("div", {class:"two"}, h("div", null, valIn), iconIn ? h("div", null, iconIn) : null),
+    items.length >= 40 ? h("div", {class:"meta"}, "This list is full (40 items).") : null,
+    h("button", {class:"act", style:"width:100%", disabled:!!state.busy["cfg" + kind] || items.length >= 40, onclick:function(){
+      if (!mf.name.trim()){ toast("Type a name first."); return; }
+      var add = {}; add[o.nameKey] = mf.name.trim(); add[o.valKey] = Number(mf.val);
+      if (o.icon && mf.icon.trim()) add.icon = mf.icon.trim();
+      saveList(kind, items.concat([add]), "Added.").then(function(ok){ if (ok){ mf.name = ""; mf.icon = ""; render(); } });
+    }}, "Add")));
+  return out;
+}
+
+function viewManage(){
+  var out = [];
+  if (!state.ppin){
+    var pin = h("input", {class:"field", type:"password", inputmode:"numeric", autocomplete:"off", placeholder:"Parent PIN", "aria-label":"Parent PIN"});
+    out.push(h("div", {class:"sec"}, "Parent mode"));
+    out.push(h("div", {class:"card"},
+      h("p", {class:"meta", style:"margin:0 0 8px"}, "Parents assign tasks and edit chores, rewards and the task bank. Enter the parent PIN to unlock this phone."),
+      pin,
+      h("button", {class:"act", style:"width:100%", onclick:function(){
+        var v = pin.value.trim();
+        if (!v) return;
+        api("parentCheck", {ppin:v}).then(function(res){
+          if (res.status === 200){
+            state.ppin = v; state.data = res.j;
+            try { localStorage.setItem("chore_ppin", v); } catch(e){}
+            toast("Parent mode on.");
+          } else toast((res.j && res.j.error) || "Could not unlock.");
+        }).catch(function(){ toast("No connection. Try again."); });
+      }}, "Unlock")));
+    return out;
+  }
+  out.push(h("div", {class:"card row"},
+    h("div", {class:"grow"}, h("div", {class:"name"}, "Parent mode is on"), h("div", {class:"meta"}, "Changes here apply to everyone's phone.")),
+    h("button", {class:"ghost", onclick:function(){
+      state.ppin = null;
+      try { localStorage.removeItem("chore_ppin"); } catch(e){}
+      toast("Parent mode off.");
+    }}, "Lock")));
+  ["bank", "chores", "rewards"].forEach(function(k){ out = out.concat(listEditor(k)); });
+  out.push(h("p", {class:"meta"}, "Changing a chore's points does not change points already earned. Removing a chore keeps the points people earned from it."));
+  return out;
+}
+
+function viewPin(){
+  var input = h("input", {type:"password", inputmode:"numeric", pattern:"[0-9]*", autocomplete:"off", maxlength:"12", "aria-label":"Family PIN"});
+  var form = h("form", {onsubmit:function(ev){
+    ev.preventDefault();
+    var v = input.value.trim();
+    if (!v) return;
+    state.pin = v; state.pinErr = ""; state.checking = true; render();
+    api("state").then(apply).catch(function(){ state.pinErr = "No connection. Try again."; state.pin = null; })
+      .then(function(){ state.checking = false; render(); });
+  }},
+    input,
+    h("div", {class:"err", role:"alert"}, state.pinErr),
+    h("button", {class:"act", type:"submit", disabled:state.checking}, state.checking ? "Checking..." : "Open the board"));
+  setTimeout(function(){ try { input.focus(); } catch(e){} }, 50);
+  return h("div", {class:"pinbox"}, h("h1", null, "Family Chore Board"), h("p", {class:"sub"}, "Enter the family PIN."), form);
+}
+
+function render(){
+  if (!state.data){
+    app.replaceChildren(viewPin());
+    return;
+  }
+  var body;
+  if (state.tab === "board") body = viewBoard();
+  else if (state.tab === "tasks") body = viewTasks();
+  else if (state.tab === "manage") body = viewManage();
+  else if (state.tab === "chat"){ markSeen(); body = viewChat(); }
+  else if (state.tab === "leaders") body = viewLeaders();
+  else if (state.tab === "rewards") body = viewRewards();
+  else body = viewHistory();
+
+  var wkLabel = "";
+  try { wkLabel = new Date(state.data.weekStart + "T00:00:00").toLocaleDateString([], {month:"short", day:"numeric"}); } catch(e){}
+  var myOpen = state.me ? openTasksFor(state.me).length : 0;
+  var tabs = [["board","✅","Chores"],["tasks","📝","Tasks" + (myOpen ? " (" + myOpen + ")" : "")],["chat","💬","Chat" + (unreadCount() ? " (" + unreadCount() + ")" : "")],["leaders","🏆","Leaders"],["rewards","🎁","Rewards"],["history","📜","History"]];
+
+  var root = h("div", null,
+    h("header", null, h("div", {class:"hrow"},
+      h("div", null, h("h1", null, "Family Chore Board"), h("p", {class:"sub"}, "Week of " + wkLabel)),
+      h("button", {class:"ghost", "aria-pressed":String(state.tab === "manage"), onclick:function(){ state.tab = "manage"; render(); window.scrollTo(0,0); }},
+        (state.ppin ? "🔓" : "🔒") + " Parent"))),
+    h("div", {class:"who"}, PEOPLE.map(function(p){
+      return h("button", {class:"chip", "aria-pressed":String(state.me === p.id), onclick:function(){ setMe(p.id); }}, dotEl(p), p.name);
+    })),
+    h("main", null, state.offline ? h("div", {class:"banner"}, "No connection. The board will update when you are back online.") : null, body),
+    h("nav", null, tabs.map(function(t){
+      return h("button", {"aria-current": state.tab === t[0] ? "page" : null, onclick:function(){ state.tab = t[0]; render(); window.scrollTo(0,0); if (t[0] === "chat") refresh(); }},
+        h("span", {class:"ic"}, t[1]), t[2]);
+    })),
+    state.toast ? h("div", {class:"toast", role:"status"}, state.toast) : null,
+    state.confirm ? h("div", {class:"scrim"}, h("div", {class:"modal"},
+      h("p", null, state.confirm.text),
+      h("div", {class:"btns"},
+        h("button", {class:"ghost", onclick:function(){ state.confirm = null; render(); }}, "Cancel"),
+        h("button", {class:"act", onclick:function(){ var f = state.confirm.onYes; state.confirm = null; render(); f(); }}, "Yes")))) : null
+  );
+  app.replaceChildren(root);
+}
+
+render();
+if (state.pin) refresh();
+function typing(){
+  var a = document.activeElement;
+  return !!a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName);
+}
+var tick = 0;
+setInterval(function(){
+  tick++;
+  if (!state.data || state.confirm || document.hidden || typing()) return;
+  if (state.tab === "chat" || tick % 2 === 0) refresh();
+}, 10000);
+document.addEventListener("visibilitychange", function(){ if (!document.hidden && state.data) refresh(); });
+})();
+</script>
+</body>
+</html>
