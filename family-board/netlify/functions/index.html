@@ -80,6 +80,25 @@ textarea.field{resize:vertical;min-height:72px}
 nav button{padding:8px 0;font-size:11px}
 .pinbox{max-width:340px;margin:12vh auto 0;padding:0 16px;text-align:center}
 .pinbox input{width:100%;font-size:28px;letter-spacing:10px;text-align:center;padding:12px;border-radius:12px;border:2px solid var(--line);background:var(--card);color:var(--ink);margin:14px 0}
+.tag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px;margin-right:6px;vertical-align:middle}
+.tag.daily{background:#dff3ea;color:#14573f}
+.tag.weekly{background:#ebe4fb;color:#4b2a99}
+@media (prefers-color-scheme: dark){.tag.daily{background:#1d3a31;color:#8fe0c3}.tag.weekly{background:#33284f;color:#cdb8ff}}
+.card.k-daily{border-left:5px solid #2f9e7a}
+.card.k-weekly{border-left:5px solid #7c5cd6}
+.card.isdone{opacity:.72}
+.card.isdone .name{text-decoration:line-through;text-decoration-thickness:1px}
+.sech{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:22px 0 2px}
+.sech h2{font-size:17px;margin:0}
+.sech .meta{font-size:13px}
+.prog{display:flex;gap:12px}
+.prog>div{flex:1;min-width:0}
+.prog .lbl2{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);font-weight:600}
+.prog .lbl2 b{color:var(--ink)}
+.bar.thin{height:8px;margin:6px 0 0}
+.pillrow{display:flex;gap:8px;flex-wrap:wrap}
+button.chip{min-height:44px}
+button.ghost{min-height:36px}
 .pinbox .err{color:#b42318;min-height:20px;font-size:14px;margin-bottom:8px}
 @media (prefers-color-scheme: dark){.pinbox .err{color:#ff8a80}}
 </style>
@@ -102,8 +121,8 @@ var state = {
   pinErr:"", offline:false, busy:{}, toast:"", confirm:null, checking:false,
   ppin:null, chat:null, seen:0,
   cform:{kind:"msg", text:"", forWho:"all", date:"", time:""}, pinText:"",
-  form:{assignee:"", title:"", points:"5", due:""},
-  mf:{chores:{name:"", val:"5", icon:"", who:[]}, rewards:{name:"", val:"30", icon:""}, bank:{name:"", val:"10", icon:""}}
+  form:{assignee:"", title:"", points:"5", due:""}, mtab:"assign", mfreq:"daily", mp:null,
+  mf:{chores:{name:"", val:"5", icon:"", who:[], freq:"daily"}, rewards:{name:"", val:"30", icon:""}, bank:{name:"", val:"10", icon:""}}
 };
 try {
   state.pin = localStorage.getItem("chore_pin");
@@ -214,27 +233,74 @@ function totals(){
   d.spent.forEach(function(s){ var p = t[s.person]; if (p) p.spent += Number(s.cost) || 0; });
   return t;
 }
-function doneToday(){
-  var d = state.data, m = {};
-  d.entries.forEach(function(e){ if (e.date === d.today) (m[e.chore] = m[e.chore] || []).push(e.person); });
+function freqOf(c){ return c && c.freq === "weekly" ? "weekly" : "daily"; }
+/* Who finished each chore in its current period: today for daily chores, this week for weekly chores. */
+function doneMap(){
+  var d = state.data, m = {}, by = {};
+  d.chores.forEach(function(c){ by[c.id] = c; });
+  d.entries.forEach(function(e){
+    var c = by[e.chore];
+    if (!c) return;
+    var inPeriod = freqOf(c) === "weekly" ? e.date >= d.weekStart : e.date === d.today;
+    if (inPeriod) (m[e.chore] = m[e.chore] || []).push({person:e.person, date:e.date});
+  });
   return m;
+}
+function daysLeftInWeek(){
+  try {
+    var dow = new Date(state.data.today + "T12:00:00").getDay();
+    var left = (7 - dow) % 7;
+    return left === 0 ? "Due today" : left === 1 ? "1 day left" : left + " days left";
+  } catch(e){ return ""; }
+}
+function weekSplit(person){
+  var d = state.data, by = {}, r = {daily:0, weekly:0, tasks:0};
+  d.chores.forEach(function(c){ by[c.id] = c; });
+  d.entries.forEach(function(e){
+    if (e.person !== person || e.date < d.weekStart) return;
+    if (String(e.chore).indexOf("task_") === 0) r.tasks += e.pts;
+    else if (freqOf(by[e.chore]) === "weekly") r.weekly += e.pts;
+    else r.daily += e.pts;
+  });
+  return r;
 }
 
 /* ---- views ---- */
 function dotEl(p){ var d = h("span", {class:"dot", title:p.name}, p.name.charAt(0)); d.style.background = p.color; return d; }
 
+function bar(done, total, color){
+  var b = h("div", {class:"bar thin"}, h("span")); 
+  var sp = b.firstChild; sp.style.width = (total ? Math.round(done / total * 100) : 0) + "%"; sp.style.background = color;
+  return b;
+}
+
 function viewBoard(){
-  var td = doneToday(), me = state.me, out = [];
+  var d = state.data, dm = doneMap(), me = state.me, out = [];
+  var mine = d.chores.filter(function(c){ return !me || !c.who || c.who.indexOf(me) >= 0; });
+  var groups = {daily: mine.filter(function(c){ return freqOf(c) === "daily"; }), weekly: mine.filter(function(c){ return freqOf(c) === "weekly"; })};
+  function isDone(c){ return !!me && (dm[c.id] || []).some(function(x){ return x.person === me; }); }
+
   if (!me) out.push(h("div", {class:"banner"}, "Tap your name above so the board knows who earns the points."));
-  state.data.chores.forEach(function(c){
-    if (me && c.who && c.who.indexOf(me) < 0) return;
-    var who = td[c.id] || [];
-    var mine = me && who.indexOf(me) >= 0;
-    var btn;
-    if (mine){
+  if (me){
+    var dd = groups.daily.filter(isDone).length, wd = groups.weekly.filter(isDone).length;
+    var t = totals()[me];
+    out.push(h("div", {class:"card"},
+      h("div", {class:"prog"},
+        h("div", null, h("div", {class:"lbl2"}, h("span", null, "Today"), h("b", null, dd + " of " + groups.daily.length)), bar(dd, groups.daily.length, "#2f9e7a")),
+        h("div", null, h("div", {class:"lbl2"}, h("span", null, "This week"), h("b", null, wd + " of " + groups.weekly.length)), bar(wd, groups.weekly.length, "#7c5cd6"))),
+      h("div", {class:"meta", style:"margin-top:10px"}, "Points today ", h("b", null, String(t.today)), "  ·  this week ", h("b", null, String(t.week)))));
+    if (!mine.length) out.push(h("div", {class:"empty"}, "No chores are assigned to you right now. Check the Tasks tab."));
+    else if (dd === groups.daily.length && wd === groups.weekly.length) out.push(h("div", {class:"banner", style:"background:var(--done)"}, "Everything on your list is done. Great work."));
+  }
+
+  function chore(c, kind){
+    var who = dm[c.id] || [], done = isDone(c), btn;
+    var perText = kind === "weekly" ? "once a week" : "every day";
+    if (done){
+      var mineEntry = who.filter(function(x){ return x.person === me; })[0];
       btn = h("button", {class:"act done", onclick:function(){
-        ask("Remove " + c.name + " for today? You will lose " + c.pts + " points.", function(){
-          act("u"+c.id, "undo", {person:me, chore:c.id, date:state.data.today}, "Removed.");
+        ask("Undo " + c.name + (kind === "weekly" ? " for this week" : " for today") + "? You will lose " + c.pts + " points.", function(){
+          act("u"+c.id, "undo", {person:me, chore:c.id, date:mineEntry.date}, "Undone.");
         });
       }}, "Done ✓");
     } else {
@@ -242,18 +308,28 @@ function viewBoard(){
         act("d"+c.id, "done", {person:me, chore:c.id}, "+" + c.pts + " points. Nice work.");
       }}, "Done");
     }
-    var mini = who.length ? h("div", {class:"mini"}, who.map(function(id){ var p = person(id); return p ? dotEl(p) : null; })) : null;
-    out.push(h("div", {class:"card row"},
+    var mini = who.length ? h("div", {class:"mini"}, who.map(function(x){ var p = person(x.person); return p ? dotEl(p) : null; })) : null;
+    return h("div", {class:"card row k-" + kind + (done ? " isdone" : "")},
       h("div", {class:"emoji"}, c.icon || "✅"),
-      h("div", {class:"grow"}, h("div", {class:"name"}, c.name), h("div", {class:"meta"}, c.pts + " points"), mini),
-      btn));
-  });
-  if (me && out.length === 0) out.push(h("div", {class:"empty"}, "No daily chores assigned to you. Check the Tasks tab."));
+      h("div", {class:"grow"}, h("div", {class:"name"}, c.name),
+        h("div", {class:"meta"}, h("span", {class:"tag " + kind}, kind === "weekly" ? "Weekly" : "Daily"), c.pts + " points · " + perText), mini),
+      btn);
+  }
+
+  function section(kind, title, sub){
+    var list = groups[kind];
+    if (!list.length) return;
+    var sorted = list.filter(function(c){ return !isDone(c); }).concat(list.filter(isDone));
+    out.push(h("div", {class:"sech"}, h("h2", null, title), h("span", {class:"meta"}, sub)));
+    sorted.forEach(function(c){ out.push(chore(c, kind)); });
+  }
+  section("daily", "Daily chores", "Resets every morning");
+  section("weekly", "Weekly chores", "Once by Sunday · " + daysLeftInWeek());
   return out;
 }
 
 function viewLeaders(){
-  var t = totals(), out = [];
+  var t = totals(), out = [], split = weekSplit;
   var list = PEOPLE.slice().sort(function(a,b){ return t[b.id].week - t[a.id].week; });
   var max = Math.max(1, t[list[0].id].week);
   out.push(h("p", {class:"sub"}, "Points since Monday. The week resets every Monday. Your balance carries over."));
@@ -267,7 +343,11 @@ function viewLeaders(){
       h("div", {class:"bar"}, bar),
       h("div", {class:"stats"},
         h("span", null, "Today ", h("b", null, String(s.today))),
-        h("span", null, "Balance ", h("b", null, String(s.earned - s.spent))))));
+        h("span", null, "Balance ", h("b", null, String(s.earned - s.spent)))),
+      h("div", {class:"pillrow", style:"margin-top:8px"},
+        h("span", {class:"tag daily"}, "Daily " + split(p.id).daily),
+        h("span", {class:"tag weekly"}, "Weekly " + split(p.id).weekly),
+        h("span", {class:"meta"}, "Tasks " + split(p.id).tasks))));
   });
   return out;
 }
@@ -547,17 +627,15 @@ var LISTS = {
 };
 function saveList(kind, items, okMsg){ return act("cfg" + kind, "setConfig", {kind:kind, items:items}, okMsg); }
 
-/* Person toggles. Empty selection or all four people means the chore is for everyone. */
+/* Person toggles for the add form. Nobody is selected until you tap names. */
 function whoChips(cur, onChange){
-  var sel = (cur && cur.length) ? cur.slice() : PEOPLE.map(function(p){ return p.id; });
+  var sel = cur || [];
   return PEOPLE.map(function(p){
     var on = sel.indexOf(p.id) >= 0;
     return h("button", {class:"ghost", type:"button", "aria-pressed":on ? "true" : "false",
       style:"padding:4px 10px;min-height:32px;" + (on ? "background:" + p.color + ";color:#fff;border-color:" + p.color : "opacity:.55"),
       onclick:function(){
-        var next = on ? sel.filter(function(x){ return x !== p.id; }) : sel.concat([p.id]);
-        if (!next.length){ toast("Pick at least one person."); return; }
-        onChange(next.length === PEOPLE.length ? [] : next);
+        onChange(on ? sel.filter(function(x){ return x !== p.id; }) : sel.concat([p.id]));
       }}, p.name);
   });
 }
@@ -576,6 +654,11 @@ function listEditor(kind){
       o.icon ? h("div", {class:"emoji"}, it.icon || "") : null,
       h("div", {class:"grow name"}, it[o.nameKey]),
       sel,
+      kind === "chores" ? h("button", {class:"ghost", "aria-label":"Switch " + it.name + " between daily and weekly", onclick:function(){
+        var next = items.map(function(x){ return Object.assign({}, x); });
+        next[i].freq = freqOf(it) === "weekly" ? "daily" : "weekly";
+        saveList("chores", next, it.name + " is now " + next[i].freq + ".");
+      }}, h("span", {class:"tag " + freqOf(it), style:"margin:0"}, freqOf(it))) : null,
       h("button", {class:"ghost", onclick:function(){
         ask(kind === "chores"
           ? "Delete \"" + it[o.nameKey] + "\" for everyone? To take it off one person only, use the person list above."
@@ -592,7 +675,11 @@ function listEditor(kind){
   var addWho = null;
   if (kind === "chores"){
     addWho = h("div", {style:"margin:8px 0"},
-      h("div", {class:"meta"}, "Who does this chore? Everyone is selected by default."),
+      h("div", {class:"meta"}, "How often?"),
+      h("div", {class:"pillrow", style:"margin:4px 0 10px"}, ["daily","weekly"].map(function(f){
+        return h("button", {class:"chip", type:"button", "aria-pressed":String(mf.freq === f), onclick:function(){ mf.freq = f; render(); }}, f === "daily" ? "Daily" : "Weekly");
+      })),
+      h("div", {class:"meta"}, "Who does this chore? Tap the names. Coloured means yes."),
       h("div", {class:"mini", style:"gap:6px;flex-wrap:wrap"}, whoChips(mf.who, function(next){ mf.who = next; render(); })));
   }
   out.push(h("div", {class:"card"},
@@ -604,30 +691,43 @@ function listEditor(kind){
       if (!mf.name.trim()){ toast("Type a name first."); return; }
       var add = {}; add[o.nameKey] = mf.name.trim(); add[o.valKey] = Number(mf.val);
       if (o.icon && mf.icon.trim()) add.icon = mf.icon.trim();
-      if (kind === "chores" && mf.who && mf.who.length) add.who = mf.who;
-      saveList(kind, items.concat([add]), "Added.").then(function(ok){ if (ok){ mf.name = ""; mf.icon = ""; mf.who = []; render(); } });
+      if (kind === "chores"){
+        if (!mf.who || !mf.who.length){ toast("Tap at least one name for this chore."); return; }
+        add.freq = mf.freq === "weekly" ? "weekly" : "daily";
+        if (mf.who.length < PEOPLE.length) add.who = mf.who;
+      }
+      saveList(kind, items.concat([add]), "Added.").then(function(ok){ if (ok){ mf.name = ""; mf.icon = ""; mf.who = []; mf.freq = "daily"; render(); } });
     }}, "Add")));
   return out;
 }
 
 function choresByPerson(){
-  var chores = state.data.chores, out = [], mp = state.mp || PEOPLE[0].id;
-  out.push(h("div", {class:"sec"}, "Daily chores by person"));
-  out.push(h("div", {class:"chips", style:"display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"}, PEOPLE.map(function(p){
+  var chores = state.data.chores, out = [], mp = state.mp || PEOPLE[0].id, fq = state.mfreq || "daily";
+  var who = person(mp);
+  function isOn(c){ return !c.who || c.who.indexOf(mp) >= 0; }
+  var nD = chores.filter(function(c){ return freqOf(c) === "daily" && isOn(c); }).length;
+  var nW = chores.filter(function(c){ return freqOf(c) === "weekly" && isOn(c); }).length;
+  out.push(h("div", {class:"sec"}, "1. Pick a person"));
+  out.push(h("div", {class:"pillrow", style:"margin-bottom:6px"}, PEOPLE.map(function(p){
     return h("button", {class:"chip", "aria-pressed":String(mp === p.id), onclick:function(){ state.mp = p.id; render(); }}, dotEl(p), p.name);
   })));
-  var who = person(mp);
-  out.push(h("p", {class:"meta", style:"margin:0 0 8px"}, "Turn a chore on or off for " + who.name + ". This never deletes the chore and never changes anyone else's list."));
+  out.push(h("div", {class:"sec"}, "2. Daily or weekly"));
+  out.push(h("div", {class:"pillrow", style:"margin-bottom:6px"},
+    h("button", {class:"chip", "aria-pressed":String(fq === "daily"), onclick:function(){ state.mfreq = "daily"; render(); }}, "Daily (" + nD + " on)"),
+    h("button", {class:"chip", "aria-pressed":String(fq === "weekly"), onclick:function(){ state.mfreq = "weekly"; render(); }}, "Weekly (" + nW + " on)")));
+  out.push(h("div", {class:"sec"}, "3. Turn chores on or off for " + who.name));
+  out.push(h("p", {class:"meta", style:"margin:0 0 8px"}, "This never deletes a chore and never changes anyone else's list."));
+  var shown = chores.map(function(c, i){ return {c:c, i:i}; }).filter(function(x){ return freqOf(x.c) === fq; });
   if (!chores.length) out.push(h("div", {class:"empty"}, "No chores in the list. Tap Restore standard chores below."));
-  chores.forEach(function(c, i){
-    var cur = c.who ? c.who : PEOPLE.map(function(p){ return p.id; });
-    var on = cur.indexOf(mp) >= 0;
-    out.push(h("div", {class:"card row"},
+  else if (!shown.length) out.push(h("div", {class:"empty"}, "No " + fq + " chores yet. Add one on the Edit lists tab."));
+  shown.forEach(function(x){
+    var c = x.c, i = x.i, cur = c.who ? c.who : PEOPLE.map(function(p){ return p.id; }), on = cur.indexOf(mp) >= 0;
+    out.push(h("div", {class:"card row k-" + fq},
       h("div", {class:"emoji"}, c.icon || "✅"),
-      h("div", {class:"grow"}, h("div", {class:"name"}, c.name), h("div", {class:"meta"}, c.pts + " points")),
+      h("div", {class:"grow"}, h("div", {class:"name"}, c.name), h("div", {class:"meta"}, h("span", {class:"tag " + fq}, fq === "weekly" ? "Weekly" : "Daily"), c.pts + " points")),
       h("button", {class:on ? "act" : "ghost", "aria-pressed":String(on), disabled:!!state.busy["cfgchores"], onclick:function(){
-        var next = chores.map(function(x){ return Object.assign({}, x); });
-        var set = on ? cur.filter(function(x){ return x !== mp; }) : cur.concat([mp]);
+        var next = chores.map(function(y){ return Object.assign({}, y); });
+        var set = on ? cur.filter(function(z){ return z !== mp; }) : cur.concat([mp]);
         if (set.length === PEOPLE.length) delete next[i].who; else next[i].who = set;
         saveList("chores", next, on ? "Removed from " + who.name + "." : "Added to " + who.name + ".");
       }}, on ? "On ✓" : "Off")));
@@ -666,11 +766,17 @@ function viewManage(){
       try { localStorage.removeItem("chore_ppin"); } catch(e){}
       toast("Parent mode off.");
     }}, "Lock")));
-  out = out.concat(listEditor("bank"));
-  out = out.concat(choresByPerson());
-  out = out.concat(listEditor("chores"));
-  out = out.concat(listEditor("rewards"));
-  out.push(h("p", {class:"meta"}, "Changing a chore's points does not change points already earned. Removing a chore keeps the points people earned from it."));
+  var mt = state.mtab || "assign";
+  out.push(h("div", {class:"pillrow", style:"margin:10px 0"},
+    h("button", {class:"chip", "aria-pressed":String(mt === "assign"), onclick:function(){ state.mtab = "assign"; render(); }}, "Assign chores"),
+    h("button", {class:"chip", "aria-pressed":String(mt === "edit"), onclick:function(){ state.mtab = "edit"; render(); }}, "Edit lists")));
+  if (mt === "assign") out = out.concat(choresByPerson());
+  else {
+    out = out.concat(listEditor("chores"));
+    out = out.concat(listEditor("bank"));
+    out = out.concat(listEditor("rewards"));
+    out.push(h("p", {class:"meta"}, "Changing a chore's points does not change points already earned. Removing a chore keeps the points people earned from it."));
+  }
   return out;
 }
 
