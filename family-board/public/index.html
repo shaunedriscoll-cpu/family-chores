@@ -103,7 +103,7 @@ var state = {
   ppin:null, chat:null, seen:0,
   cform:{kind:"msg", text:"", forWho:"all", date:"", time:""}, pinText:"",
   form:{assignee:"", title:"", points:"5", due:""},
-  mf:{chores:{name:"", val:"5", icon:""}, rewards:{name:"", val:"30", icon:""}, bank:{name:"", val:"10", icon:""}}
+  mf:{chores:{name:"", val:"5", icon:"", who:[]}, rewards:{name:"", val:"30", icon:""}, bank:{name:"", val:"10", icon:""}}
 };
 try {
   state.pin = localStorage.getItem("chore_pin");
@@ -227,6 +227,7 @@ function viewBoard(){
   var td = doneToday(), me = state.me, out = [];
   if (!me) out.push(h("div", {class:"banner"}, "Tap your name above so the board knows who earns the points."));
   state.data.chores.forEach(function(c){
+    if (me && c.who && c.who.indexOf(me) < 0) return;
     var who = td[c.id] || [];
     var mine = me && who.indexOf(me) >= 0;
     var btn;
@@ -247,6 +248,7 @@ function viewBoard(){
       h("div", {class:"grow"}, h("div", {class:"name"}, c.name), h("div", {class:"meta"}, c.pts + " points"), mini),
       btn));
   });
+  if (me && out.length === 0) out.push(h("div", {class:"empty"}, "No daily chores assigned to you. Check the Tasks tab."));
   return out;
 }
 
@@ -539,11 +541,24 @@ function viewChat(){
 }
 
 var LISTS = {
-  chores:  {title:"Daily chores",  nameKey:"name",  valKey:"pts",    steps:POINT_STEPS, icon:true,  ph:"New chore, for example: set the table"},
+  chores:  {title:"All chores: points, add, delete",  nameKey:"name",  valKey:"pts",    steps:POINT_STEPS, icon:true,  ph:"New chore, for example: set the table"},
   rewards: {title:"Rewards",       nameKey:"name",  valKey:"cost",   steps:COST_STEPS,  icon:true,  ph:"New reward, for example: game night pick"},
   bank:    {title:"Task bank",     nameKey:"title", valKey:"points", steps:POINT_STEPS, icon:false, ph:"New bank task, for example: clean the garage"}
 };
 function saveList(kind, items, okMsg){ return act("cfg" + kind, "setConfig", {kind:kind, items:items}, okMsg); }
+
+/* Person toggles for the add form. Nobody is selected until you tap names. */
+function whoChips(cur, onChange){
+  var sel = cur || [];
+  return PEOPLE.map(function(p){
+    var on = sel.indexOf(p.id) >= 0;
+    return h("button", {class:"ghost", type:"button", "aria-pressed":on ? "true" : "false",
+      style:"padding:4px 10px;min-height:32px;" + (on ? "background:" + p.color + ";color:#fff;border-color:" + p.color : "opacity:.55"),
+      onclick:function(){
+        onChange(on ? sel.filter(function(x){ return x !== p.id; }) : sel.concat([p.id]));
+      }}, p.name);
+  });
+}
 
 function listEditor(kind){
   var o = LISTS[kind], items = state.data[kind], mf = state.mf[kind], out = [];
@@ -560,26 +575,67 @@ function listEditor(kind){
       h("div", {class:"grow name"}, it[o.nameKey]),
       sel,
       h("button", {class:"ghost", onclick:function(){
-        ask("Remove \"" + it[o.nameKey] + "\" from the list?", function(){
+        ask(kind === "chores"
+          ? "Delete \"" + it[o.nameKey] + "\" for everyone? To take it off one person only, use the person list above."
+          : "Remove \"" + it[o.nameKey] + "\" from the list?", function(){
           saveList(kind, items.filter(function(_, j){ return j !== i; }), "Removed.");
         });
-      }}, "Remove")));
+      }}, kind === "chores" ? "Delete" : "Remove")));
   });
   var nameIn = h("input", {class:"field", type:"text", maxlength:o.nameKey === "title" ? "80" : "40", placeholder:o.ph, value:mf.name, "aria-label":"New item name",
     oninput:function(e){ mf.name = e.target.value; }});
   var valIn = h("select", {class:"field", "aria-label":"Points", onchange:function(e){ mf.val = e.target.value; }}, stepOptions(o.steps, mf.val, mf.val));
   var iconIn = o.icon ? h("input", {class:"field", type:"text", maxlength:"4", placeholder:"Emoji (optional)", value:mf.icon, "aria-label":"Emoji",
     oninput:function(e){ mf.icon = e.target.value; }}) : null;
+  var addWho = null;
+  if (kind === "chores"){
+    addWho = h("div", {style:"margin:8px 0"},
+      h("div", {class:"meta"}, "Who does this chore? Tap the names. Coloured means yes."),
+      h("div", {class:"mini", style:"gap:6px;flex-wrap:wrap"}, whoChips(mf.who, function(next){ mf.who = next; render(); })));
+  }
   out.push(h("div", {class:"card"},
     nameIn,
     h("div", {class:"two"}, h("div", null, valIn), iconIn ? h("div", null, iconIn) : null),
+    addWho,
     items.length >= 40 ? h("div", {class:"meta"}, "This list is full (40 items).") : null,
     h("button", {class:"act", style:"width:100%", disabled:!!state.busy["cfg" + kind] || items.length >= 40, onclick:function(){
       if (!mf.name.trim()){ toast("Type a name first."); return; }
       var add = {}; add[o.nameKey] = mf.name.trim(); add[o.valKey] = Number(mf.val);
       if (o.icon && mf.icon.trim()) add.icon = mf.icon.trim();
-      saveList(kind, items.concat([add]), "Added.").then(function(ok){ if (ok){ mf.name = ""; mf.icon = ""; render(); } });
+      if (kind === "chores"){
+        if (!mf.who || !mf.who.length){ toast("Tap at least one name for this chore."); return; }
+        if (mf.who.length < PEOPLE.length) add.who = mf.who;
+      }
+      saveList(kind, items.concat([add]), "Added.").then(function(ok){ if (ok){ mf.name = ""; mf.icon = ""; mf.who = []; render(); } });
     }}, "Add")));
+  return out;
+}
+
+function choresByPerson(){
+  var chores = state.data.chores, out = [], mp = state.mp || PEOPLE[0].id;
+  out.push(h("div", {class:"sec"}, "Daily chores by person"));
+  out.push(h("div", {class:"chips", style:"display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"}, PEOPLE.map(function(p){
+    return h("button", {class:"chip", "aria-pressed":String(mp === p.id), onclick:function(){ state.mp = p.id; render(); }}, dotEl(p), p.name);
+  })));
+  var who = person(mp);
+  out.push(h("p", {class:"meta", style:"margin:0 0 8px"}, "Turn a chore on or off for " + who.name + ". This never deletes the chore and never changes anyone else's list."));
+  if (!chores.length) out.push(h("div", {class:"empty"}, "No chores in the list. Tap Restore standard chores below."));
+  chores.forEach(function(c, i){
+    var cur = c.who ? c.who : PEOPLE.map(function(p){ return p.id; });
+    var on = cur.indexOf(mp) >= 0;
+    out.push(h("div", {class:"card row"},
+      h("div", {class:"emoji"}, c.icon || "✅"),
+      h("div", {class:"grow"}, h("div", {class:"name"}, c.name), h("div", {class:"meta"}, c.pts + " points")),
+      h("button", {class:on ? "act" : "ghost", "aria-pressed":String(on), disabled:!!state.busy["cfgchores"], onclick:function(){
+        var next = chores.map(function(x){ return Object.assign({}, x); });
+        var set = on ? cur.filter(function(x){ return x !== mp; }) : cur.concat([mp]);
+        if (set.length === PEOPLE.length) delete next[i].who; else next[i].who = set;
+        saveList("chores", next, on ? "Removed from " + who.name + "." : "Added to " + who.name + ".");
+      }}, on ? "On ✓" : "Off")));
+  });
+  out.push(h("button", {class:"ghost", style:"width:100%;margin:6px 0", disabled:!!state.busy["restore"], onclick:function(){
+    act("restore", "restoreChores", {}, "Standard chores restored.");
+  }}, "Restore standard chores"));
   return out;
 }
 
@@ -611,7 +667,10 @@ function viewManage(){
       try { localStorage.removeItem("chore_ppin"); } catch(e){}
       toast("Parent mode off.");
     }}, "Lock")));
-  ["bank", "chores", "rewards"].forEach(function(k){ out = out.concat(listEditor(k)); });
+  out = out.concat(listEditor("bank"));
+  out = out.concat(choresByPerson());
+  out = out.concat(listEditor("chores"));
+  out = out.concat(listEditor("rewards"));
   out.push(h("p", {class:"meta"}, "Changing a chore's points does not change points already earned. Removing a chore keeps the points people earned from it."));
   return out;
 }
