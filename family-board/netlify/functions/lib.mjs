@@ -5,14 +5,14 @@ export const PEOPLE = ["shaun", "chungha", "calean", "jayden"];
 /* Starting lists. Once you edit a list on the website, the saved version replaces these. */
 export const CHORES = [
   { id: "dishes",    name: "Dishes",          pts: 5,  icon: "🍽️" },
-  { id: "vacuum",    name: "Vacuum",          pts: 8,  icon: "🧹" },
-  { id: "bedrooms",  name: "Clean bedrooms",  pts: 8,  icon: "🛏️" },
+  { id: "vacuum",    name: "Vacuum",          pts: 8,  icon: "🧹", freq: "weekly" },
+  { id: "bedrooms",  name: "Clean bedrooms",  pts: 8,  icon: "🛏️", freq: "weekly" },
   { id: "laundry",   name: "Laundry",         pts: 8,  icon: "🧺" },
-  { id: "mop",       name: "Mop",             pts: 8,  icon: "🪣" },
+  { id: "mop",       name: "Mop",             pts: 8,  icon: "🪣", freq: "weekly" },
   { id: "litter",    name: "Cat litter",      pts: 4,  icon: "🐱" },
   { id: "dogs",      name: "Walk the dogs",   pts: 5,  icon: "🐕" },
   { id: "garbage",   name: "Garbage",         pts: 3,  icon: "🗑️" },
-  { id: "bathrooms", name: "Clean bathrooms", pts: 10, icon: "🚿" },
+  { id: "bathrooms", name: "Clean bathrooms", pts: 10, icon: "🚿", freq: "weekly" },
   { id: "tidy",      name: "Tidy up",         pts: 3,  icon: "✨" }
 ];
 
@@ -128,7 +128,7 @@ export function cleanItems(kind, items, now) {
     const num = Math.round(Number(kind === "rewards" ? raw.cost : kind === "bank" ? raw.points : raw.pts));
     if (!Number.isFinite(num)) return null;
     if (kind === "chores") {
-      const item = { id, name: text, pts: clamp(num, 0, 50), icon: cleanIcon(raw.icon, "✅") };
+      const item = { id, name: text, pts: clamp(num, 0, 50), icon: cleanIcon(raw.icon, "✅"), freq: raw.freq === "weekly" ? "weekly" : "daily" };
       /* No "who" means everyone. An empty "who" keeps the chore in the list but gives it to nobody. */
       const who = Array.isArray(raw.who) ? PEOPLE.filter((p) => raw.who.includes(p)) : null;
       if (who && who.length < PEOPLE.length) item.who = who;
@@ -295,6 +295,17 @@ export async function handle(input, store, env, now) {
     }
     const date = action === "done" ? todayStr(now) : input.date;
     if (typeof date !== "string" || !DATE_RE.test(date)) return reply(400, { error: "Bad date." });
+    if (action === "done" && chore.freq === "weekly") {
+      const ws = weekStartOf(date);
+      for (const month of new Set([ws.slice(0, 7), date.slice(0, 7)])) {
+        const seen = await readJson(store, "m/" + month + "_" + person);
+        for (const d of Object.keys((seen && seen.days) || {})) {
+          if (d >= ws && d <= date && seen.days[d] && seen.days[d][chore.id]) {
+            return reply(200, await loadState(store, now));
+          }
+        }
+      }
+    }
     const key = "m/" + date.slice(0, 7) + "_" + person;
     const rec = (await readJson(store, key)) || { month: date.slice(0, 7), person, days: {} };
     rec.days = rec.days || {};
